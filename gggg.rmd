@@ -1,0 +1,151 @@
+---
+title: "lab2"
+output: html_document
+date: '2022-04-03'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+
+# With all values
+d <- read.csv("C:/Users/tnt85/Downloads/Github Sophie/FIFA22_official_data.csv/FIFA22_official_data.csv")
+
+#With only GK
+
+
+money_formatter <- function(x) {
+  x <- gsub("â‚¬", "", x)
+  x <- gsub("\\.", "", x)
+  x <- gsub("K", "000", x)
+  x <- gsub("M", "000000", x)
+  x <- as.numeric(x)
+  return(x)
+}
+
+weight_formatter <- function(x) {
+  x <- case_when(
+    grepl("kg", x, fixed=TRUE) ~ as.numeric(gsub("kg", "", x)),
+    grepl("cm", x, fixed=TRUE) ~  as.numeric(gsub("cm", "", x)),
+    TRUE ~ as.numeric(x)
+  )
+  return(x)
+}
+
+
+d$Value <- money_formatter(d$Value)
+d$Wage <- money_formatter(d$Wage)
+d$Height <- weight_formatter(d$Height)
+d$Weight <- weight_formatter(d$Weight)
+
+df <- (filter(d, Best.Position == "GK"))
+
+df <- subset(df, select = -Loaned.From)
+df <- subset(df, select = -Marking)
+
+```
+
+```{r histograms for visualizing}
+ggplot(d, aes(x=GKDiving)) + geom_histogram() 
+
+# shows a heavily skewed distribution between GK normal distribution and the extremely low non-GK distribution
+
+ggplot(df, aes(x=GKDiving)) + geom_histogram() 
+
+# Zooming in on GK diving, shows that the distribution of GK only players is normal
+
+ggplot(d, aes(x=Overall)) + geom_histogram()
+
+# Other skills such as overall skill are surprisingly normally distributed among all professional players
+
+ggplot(df, aes(x=Overall)) + geom_histogram()
+
+# This normal distribution continues for GK players
+
+
+# This implies that GK are outliers, however, it's it will be clearer to check the p-value using stargazer to see or running some tests on null hypothesis to check
+
+# Expanding on this data diving, looking at covariates versus non-covariates is key.
+
+#no_covariates - These are the variables which likely do not effect outcome
+#with_covariates - These are the variables which likely DO effect the outcome
+
+# Assumption: The outcome we are studying here is what is indictive of being a skilled GK, based on our research question. 
+# While the dataset (d) encompasses non-GK and is extremely skewed in terms of GK skills vs typical skills.
+# Thus, the GK role should be the first sorting of the data and removing the non-GK role rows
+
+# This is reflected in the df named df
+
+# Next is to solve the Euro and "K" mixed into the value / Wage data.
+# Value & Wage are broken, need to be cleaned
+# Height and weight fix (cm, Kilo)
+
+# This is also reflected in the df named df.
+
+# Remove Nans values? Does it skew the data, let's show a histogram before and after removal to see how it affects distribution.
+
+# nans removed is "dff"
+dff <- na.omit(df)
+ggplot(dff, aes(x=Overall)) + geom_histogram()
+
+# Removing rows with Nans results in a more well rounded dataset that more clearly shows Normal distribution
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# This atypical distribution with a right-tail for those who have the role of GK continues below.
+ggplot(dff, aes(x=GKHandling)) + geom_histogram()
+ggplot(dff, aes(x=GKKicking)) + geom_histogram()
+ggplot(dff, aes(x=GKReflexes)) + geom_histogram()
+ggplot(dff, aes(x=GKPositioning)) + geom_histogram()
+```
+
+
+```{r wages, echo=FALSE}
+ggplot(dff, aes(x=Value)) + geom_histogram()
+ggplot(dff, aes(x=Wage)) + geom_histogram()
+
+# Wages and Contract Transfer fees are quite skewed to the left with a right tail
+# This shows that the data is not iid nor meets the large sample assumptions.
+
+```
+
+```{r talls, echo=FALSE}
+ggplot(dff, aes(x=Height)) + geom_histogram()
+ggplot(dff, aes(x=Weight)) + geom_histogram()
+
+# Wages and Contract Transfer fees are quite skewed to the left with a right tail
+# This shows that the data is not iid nor meets the large sample assumptions.
+
+# mod_pooled_no_covariates <- 
+# mod_pooled_with_covariates
+
+# f_test_of_long_vs_short <- anova(mod_pooled_no_covariates, mod_pooled_with_covariates, test = 'F')
+# f_test_of_long_vs_short
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
