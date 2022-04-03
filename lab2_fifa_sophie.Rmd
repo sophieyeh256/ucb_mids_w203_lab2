@@ -1,0 +1,106 @@
+---
+title: "lab2_fifa_sophie"
+output: pdf_document
+date: '2022-04-01'
+---
+
+Note that the `echo = FALSE` prevent printing of the R code that generated the plot.
+
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+
+data <- read.csv('data/external/FIFA22_official_data.csv')
+df <- (filter(data, Best.Position == "GK"))
+
+na.omit(df)
+
+money_formatter <- function(x) {
+  x <- gsub("€", "", x)
+  x <- case_when(
+    grepl("K", x, fixed=TRUE) ~ as.numeric(gsub("K", "", x))*1e3,
+    grepl("M", x, fixed=TRUE) ~  as.numeric(gsub("M", "", x))*1e6,
+    TRUE ~ as.numeric(x)
+  )
+  return(x)
+}
+weight_formatter <- function(x) {
+  x <- case_when(
+    grepl("kg", x, fixed=TRUE) ~ as.numeric(gsub("kg", "", x)),
+    grepl("cm", x, fixed=TRUE) ~  as.numeric(gsub("cm", "", x)),
+    TRUE ~ as.numeric(x)
+  )
+  return(x)
+}
+
+df$Value <- money_formatter(df$Value)
+df$Wage <- money_formatter(df$Wage)
+df$Height <- weight_formatter(df$Height)
+df$Weight <- weight_formatter(df$Weight)
+
+glimpse(df)
+
+
+```
+
+```{r}
+model1 <- lm(Value ~ Age+ 
+                     Overall+ 
+                     Potential+ 
+                     Preferred.Foot+
+                     International.Reputation+
+                     Height+ 
+                     Weight+
+                     Wage,
+                   # Nationality+
+                   # Club+
+          data=df)
+
+model2 <- lm(Value ~ Age+ 
+                     Overall+ 
+                     Potential+ 
+                     Preferred.Foot+
+                     International.Reputation+
+                     Height+ 
+                     Weight+
+                     Nationality+
+                     Club+ # Djurgårdens IF, Cruzeiro, Crystal Palace, and others
+                     Wage+
+                     Special+
+                     Weak.Foot+
+                     Skill.Moves+
+                     Work.Rate+
+                     Body.Type+ #Body.TypeUnique
+                     Best.Overall.Rating,
+             data=df)
+
+# model3 <- multinom(Overall ~ Age+ 
+#                Nationality+ 
+#                Club+ 
+               # Wage+ 
+               # Special+
+               # Preferred.Foot+ 
+               # International.Reputation+
+               # Weak.Foot+
+               # Skill.Moves+
+               # Work.Rate+
+               # Body.Type+
+               # Height+ 
+               # Weight,
+             # Best.Overall.Rating, 
+             # data=df)
+```
+
+```{r}
+stargazer(model1, model2, type='text', no.space=TRUE)
+
+```
+

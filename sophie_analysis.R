@@ -56,11 +56,11 @@ df$Weight <- weight_formatter(df$Weight)
   
   
 model1 <- lm(Value ~ Age+ 
-                         Nationality+ # Costa Rica, Algeria
+                         # Nationality+ # Costa Rica, Algeria
                          Overall+ # significant
                          Potential+ # significant
                          # Club+ # Djurgårdens IF, Cruzeiro, Crystal Palace, and others
-                         # Wage+ 
+                         Wage+
                          # Special+
                          Preferred.Foot+ # Right
                          International.Reputation+
@@ -73,7 +73,7 @@ model1 <- lm(Value ~ Age+
                          # Best.Overall.Rating, 
                  data=df)
 summary(model1)
-
+glimpse(df)
 model2 <- lm(Value ~ Age+ 
                Nationality+
                Overall+ 
@@ -93,7 +93,7 @@ model2 <- lm(Value ~ Age+
              data=df)
 summary(model2)
 
-model3 <- multinom (Overall ~ Age+ 
+model3 <- multinom(Overall ~ Age+ 
                Nationality+ 
                Club+ 
                # Wage+ 
