@@ -26,52 +26,87 @@ df <- read.csv('data/interim/fifa22_interim_sophie.csv')
 hist(df$Age)
 hist(df$Overall)
 hist(df$Potential)
-hist(log(df$Value))
+hist(log(df$Value), col = df$Nationality)
 hist(log(df$Wage))
 hist(df$Special)
 hist(df$Preferred.Foot.Right)
 hist(df$International.Reputation)
 hist(df$Weak.Foot)
 hist(df$Skill.Moves)
-hist(df$Height)
-hist(df$Weight)
+
 hist(log(df$Release.Clause))
+hist(df$Contract.Years)
 
-
-plot(x=(df$Age), y=log(df$Value))
 plot(x=df$Overall, y=log(df$Value))
 plot(x=df$Potential, y=log(df$Value))
+cor(x=df$Potential, y=df$Overall)
+
 plot(x=df$International.Reputation, y=log(df$Value))
 plot(x=log(df$Release.Clause), y=log(df$Value))
+plot(x=df$Contract.Years, y=log(df$Value))
+
 ```
 
 ```{r}
 # correlation plots
-df_num <- select(df,
-                     -Nationality,
-                     -Club,
-                     -Skill.Moves,
-                     - Body.Type,
-                     - Joined,
-                     - Loaned.From,
-                     - Contract.Valid.Until,
-                     -Best.Position,
-                     -Work.Rate,
-                     )
+df_num <- select_if(df, is.numeric) 
 df_num.cor <- cor(df_num, use  = "pairwise.complete.obs")
 corrplot(df_num.cor, 
          method="square",
          type="lower",
          tl.cex = .4)
 cor(x=(df_num$Overall), y=log(df_num$Value))
-df_num$logValue <- log(df_num$Value)
 # matrix scatterplot
-ggpairs(select(df_num, logValue, Age, Potential, International.Reputation))
+df_num$logValue <- log(df_num$Value)
+ggpairs(select(df_num, logValue, Age, Potential, International.Reputation, isMajorNationality, isMajorClub, Contract.Years))
 # Release Clause has near perfect collinearity of 0.9917075. Breaks assumption so cannot use.
+```
 
+
+```{r}
+#AGE
 temp_mod <- lm(log(Value + 1e-16)~ poly(Age, degree=2, raw=T), data=df)
 plot(df$Age, log(df$Value))
 lines(smooth.spline(df$Age, predict(temp_mod)), lwd=3, col="red")
+```
 
+```{r}
+
+#HEIGHT and WEIGHT
+hist(df$Height)
+hist(df$Weight)
+plot(x = df$Height, y=log(df$Value))
+plot(x = df$Weight, y=log(df$Value))
+temp_mod <- lm(log(Value + 1e-16)~ poly(Weight, degree=1, raw=T), data=df)
+mean(resid(temp_mod)^2)
+
+
+```
+
+
+
+
+
+
+```{r}
+#Contract Years (from 2022)
+temp_mod <- lm(log(Value)~ poly(Contract.Years, degree=2, raw=T), data=df)
+plot(df$Contract.Years, log(df$Value))
+lines(smooth.spline(df$Contract.Years, predict(temp_mod)), lwd=3, col="red")
+mean(resid(temp_mod)^2)
+```
+
+
+```{r}
+# NATIONALITY
+plot(log(df$Value), df$isMajorNationality)
+hist(log(df$Value), breaks=100, col = df$isMajorNationality)
+table(df$Nationality)
+```
+```{r}
+# CLUB
+plot(y = log(df$Value), x = df$isMajorClub)
+hist(log(df$Value), breaks=100, col = df$isMajorClub)
+table(df$isMajorClub)
 ```
 

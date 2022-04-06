@@ -18,91 +18,61 @@ library(corrplot)
 library(car)
 library(GGally)
 
-df <- read.csv('data/interim/fifa22_interim_sophie.csv')
 ```
+
+```{r}
+df <- read.csv('data/interim/fifa22_interim_sophie.csv')
+df <- na.omit(df)
+```
+
+
 
 ```{r}
 # key variables only
-model1 <- lm(log(Value+1e-16) ~ 
-               Age + I(Age^2) +
-                                Overall +
-                                Potential +
-                                # factor(Nationality) +
-                                International.Reputation, 
-          data=df)
+# start with polynomial assumption
+# model1 <- lm(log(Value+1e-16) ~
+#                Age + I(Age^2) + Potential + isMajorNationality + International.Reputation+
+#                Contract.Years  + Height + I(log(Wage)) + Weight,
+#               data=df)
 
-# investigate omitted variable bias. Add skills instead of overall
-model2 <- lm(log(Value+1e-16) ~ 
-               Age + I(Age^2) +
-                                Potential +
-                                # Nationality + 
-                                International.Reputation +
-                                # Preferred.Foot.Right +
-                                Weak.Foot + 
-                                GKDiving +
-                                GKHandling +
-                                GKKicking +
-                                GKPositioning +
-                                GKReflexes +
-                                DefensiveAwareness,
-          data=df)
+# model with I(Age) has high VIF. Removing I(Age)
+model2 <- lm(log(Value+1e-16) ~
+               I(Age^2) + Potential + isMajorNationality + International.Reputation+
+               Height + I(log(Wage)) + Weight + Contract.Years,
+              data=df)
 
-# include other factors in the dataset that might also be significant
+# Another potentially significant coefficient is Contract Years and Special
 model3 <- lm(log(Value+1e-16) ~ 
-               Age + I(Age^2) +
-                                Overall +
-                                Potential +
-                                # Nationality + 
-                                International.Reputation +
-                                Wage + 
-                                Special + 
-                                Height +
-                                Weight,
+               I(Age^2) + Potential + isMajorNationality + International.Reputation+
+               Contract.Years + I(log(Wage)) + Height + Weight + Special,
           data=df)
 
-# Remove insignificant variables in model3
-model4 <- lm(log(Value+1e-16) ~ 
-               Age + I(Age^2) +
-                                Overall +
-                                Potential +
-                                # Nationality + 
-                                Height +
-                                Weight,
-          data=df)
-stargazer(model1, model2, model3, model4,  type='text', no.space=TRUE)
+model_msr <- c()
+# model_msr["model1"] <- mean(resid(model1)^2)
+model_msr["model2"] <- mean(resid(model2)^2)
+model_msr["model3"] <- mean(resid(model3)^2)
 
-```
-```{r}
-model1_msr <- mean(resid(model1)^2)
-model2_msr <- mean(resid(model2)^2)
-model3_msr <- mean(resid(model3)^2)
-model4_msr <- mean(resid(model4)^2)
-model1_msr
-model2_msr
-model3_msr
-model4_msr
-
-
-
-
-
+stargazer(model1, model2, model3, type="text")
 ```
 
-```{r}
-for (i in (1:6)){
-  plot(model1, which=i)
-}
-for (i in (1:6)){
-  plot(model4, which=i)
-}
-anova(model1, model2, test="F") # model2***
-anova(model3, model4, test="F") # model4*
-anova(model1, model2, model3, model4, test="F") # model2***
 
-vif(model1)
+
+
+```{r}
+
+# vif(model1)
 vif(model2)
 vif(model3)
-vif(model4)
+print(model_msr)
+anova(model2, model3, test="F")
 
+```
+
+```{r}
+
+
+for (i in (1:6)){
+  plot(model2, which=i)
+}
 ```
 
