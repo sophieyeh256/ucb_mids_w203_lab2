@@ -23,13 +23,39 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-
-
+```{r something}
 # With all values
 d <- read.csv("C:/Users/tnt85/Downloads/Github Sophie/FIFA22_official_data.csv/FIFA22_official_data.csv")
 
 #With only GK
+
+# Function from python converted to R
+#major_nation <- function(x) {
+#  if (x$Nationality == ) ~ print("1")
+#}
+
+
+
+# Dealing with K for ex:
+# 3.14K
+# 3.14K should be 3140
+# 3.14K instead is 314000
+# 3.14M should be 3,140,000
+# 3.14M instead is 314,000,000
+
+k_formatter <- function(x) {
+    x <- gsub("K", "", x)
+    #x <- as.numeric(x)
+    #x <- x*1000
+    return(x)
+}
+
+m_formatter <- function(x) {
+    x <- gsub("M", "", x)
+    #x <- as.numeric(x)
+    #x <- x
+    return(x)
+}
 
 
 money_formatter <- function(x) {
@@ -145,6 +171,76 @@ ggplot(dff, aes(x=Weight)) + geom_histogram()
 
 # f_test_of_long_vs_short <- anova(mod_pooled_no_covariates, mod_pooled_with_covariates, test = 'F')
 # f_test_of_long_vs_short
+
+```
+
+```{r talls, echo=FALSE}
+# Graph all remaining X covariates
+# Age, Height, Weight, Preferred Foot, Overall Ranking (# overall), nationality, potential, international reputation
+
+ggplot(dff, aes(x=Age)) + geom_histogram()
+ggplot(dff, aes(x=Preferred.Foot)) + geom_histogram(stat="count")
+ggplot(dff, aes(x=Overall)) + geom_histogram()
+#ggplot(dff, aes(x=Nationality)) + geom_histogram()
+ggplot(dff, aes(x=Overall)) + geom_histogram()
+ggplot(dff, aes(x=International.Reputation)) + geom_histogram()
+
+# Wages and Contract Transfer fees are quite skewed to the left with a right tail
+# This shows that the data is not iid nor meets the large sample assumptions.
+
+# mod_pooled_no_covariates <- 
+# mod_pooled_with_covariates
+
+# f_test_of_long_vs_short <- anova(mod_pooled_no_covariates, mod_pooled_with_covariates, test = 'F')
+# f_test_of_long_vs_short
+
+```
+
+
+```{r plotz, echo=FALSE}
+
+ggplot(dff, aes(x=Overall,y=Age)) + geom_point()
+# Plotting age and overall ability shows a skewed nature towards higher age and more overall
+# This seems to still match a normal distribution
+
+ggplot(dff, aes(x=Overall,y=Wage)) + geom_point()
+
+ggplot(dff, aes(x=Overall,y=GKKicking)) + geom_point()
+ggplot(dff, aes(x=Overall,y=GKDiving)) + geom_point()
+ggplot(dff, aes(x=Overall,y=International.Reputation)) + geom_point()
+
+ggplot(dff, aes(x=Overall,y=GKHandling)) + geom_point()
+ggplot(dff, aes(x=Overall,y=GKReflexes)) + geom_point()
+ggplot(dff, aes(x=Overall,y=GKPositioning)) + geom_point()
+
+
+# Plotting the above shows that GKKicking is the least indicative of a highly overall skilled GK
+# However, the plotting of GK positioning shows that falls the closest to a overall skiller GK
+
+# International reputation is very obviously seperated by overall ability
+
+# Overall skill and wage are quite skewed to the right with a long left tail, showing a large inequality
+
+```
+
+```{r plotztwo, echo=FALSE}
+#dff$Overall <- as.numeric(dff$Overall)
+t.test(dff$Overall,dff$Wage)
+
+t.test(dff$Overall,dff$GKPositioning)
+
+t.test(dff$GKPositioning,dff$Wage)
+
+wilcox.test(dff$Overall, dff$Wage, alternative = "two.sided")
+
+
+```
+
+
+
+```{r natcounts, echo=FALSE}
+# Use final from other dataseta
+
 
 ```
 
