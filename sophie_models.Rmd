@@ -23,6 +23,8 @@ library(GGally)
 ```{r}
 df <- read.csv('data/interim/fifa22_interim_sophie.csv')
 df <- na.omit(df)
+dim(df) #1358   24
+
 ```
 
 
@@ -30,35 +32,34 @@ df <- na.omit(df)
 ```{r}
 # key variables only
 # start with polynomial assumption
-# model1 <- lm(log(Value+1e-16) ~
-#                Age + I(Age^2) + Potential + isMajorNationality + International.Reputation+
-#                Contract.Years  + Height + I(log(Wage)) + Weight,
-#               data=df)
+model1 <- lm(log(Value) ~
+               Age + I(Age^2) + Potential + isMajorNationality + International.Reputation+
+               Contract.Years  + Height + I(log(Wage)) + Weight,
+              data=df)
 
 # model with I(Age) has high VIF. Removing I(Age)
-model2 <- lm(log(Value+1e-16) ~
+model2 <- lm(log(Value) ~
                I(Age^2) + Potential + isMajorNationality + International.Reputation+
                Height + I(log(Wage)) + Weight + Contract.Years,
               data=df)
 
 # Another potentially significant coefficient is Contract Years and Special
-model3 <- lm(log(Value+1e-16) ~ 
+model3 <- lm(log(Value) ~ 
                I(Age^2) + Potential + isMajorNationality + International.Reputation+
                Contract.Years + I(log(Wage)) + Height + Weight + Special,
           data=df)
 
-model_msr <- c()
-# model_msr["model1"] <- mean(resid(model1)^2)
-model_msr["model2"] <- mean(resid(model2)^2)
-model_msr["model3"] <- mean(resid(model3)^2)
-
-stargazer(model1, model2, model3, type="text")
+stargazer(model1, model2, model3, type="text", no.space = TRUE)
 ```
 
 
 
 
 ```{r}
+model_msr <- c()
+model_msr["model1"] <- mean(resid(model1)^2)
+model_msr["model2"] <- mean(resid(model2)^2)
+model_msr["model3"] <- mean(resid(model3)^2)
 
 # vif(model1)
 vif(model2)
