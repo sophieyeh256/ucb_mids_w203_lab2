@@ -238,8 +238,59 @@ wilcox.test(dff$Overall, dff$Wage, alternative = "two.sided")
 
 
 
-```{r natcounts, echo=FALSE}
-# Use final from other dataseta
+```{r models, echo=FALSE}
+
+df <- dff
+
+model1 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # factor(Nationality) +
+                                International.Reputation, 
+          data=df)
+
+# investigate omitted variable bias. Add skills instead of overall
+model2 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Potential +
+                                # Nationality + 
+                                International.Reputation +
+                                # Preferred.Foot.Right +
+                                Weak.Foot + 
+                                GKDiving +
+                                GKHandling +
+                                GKKicking +
+                                GKPositioning +
+                                GKReflexes +
+                                DefensiveAwareness,
+          data=df)
+
+# include other factors in the dataset that might also be significant
+model3 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # Nationality + 
+                                International.Reputation +
+                                Wage + 
+                                Special + 
+                                Height +
+                                Weight,
+          data=df)
+
+# Remove insignificant variables in model3
+model4 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # Nationality + 
+                                Height +
+                                Weight,
+          data=df)
+stargazer(model1, model2, model3, model4,  type='text', no.space=TRUE)
+
+
 
 
 ```
