@@ -32,21 +32,28 @@ dim(df) #1358   24
 ```{r}
 # key variables only
 # start with polynomial assumption
-model1 <- lm(log(Value) ~
-               Age + I(Age^2) + Potential + isMajorNationality + International.Reputation+
-               Contract.Years  + Height + I(log(Wage)) + Weight,
-              data=df)
+model1 <- lm(log(Value) ~ Age + I(Age^2) +
+                         isMajorNationality +
+                         International.Reputation + Contract.Years +
+                         Height + Weight + Special,
+             data=df)
 
 # model with I(Age) has high VIF. Removing I(Age)
 model2 <- lm(log(Value) ~
-               I(Age^2) + Potential + isMajorNationality + International.Reputation+
-               Height + I(log(Wage)) + Weight + Contract.Years,
+               I(Age^2) + isMajorNationality + International.Reputation+
+               Height + Weight + Contract.Years + Special,
               data=df)
 
 # Another potentially significant coefficient is Contract Years and Special
-model3 <- lm(log(Value) ~ 
-               I(Age^2) + Potential + isMajorNationality + International.Reputation+
-               Contract.Years + I(log(Wage)) + Height + Weight + Special,
+model3 <- lm(log(Value) ~
+              I(Age^2) + isMajorNationality + International.Reputation+
+               Contract.Years + Height + Weight+
+               Agility +
+               Strength+
+               Jumping+
+              Acceleration+
+               Stamina+
+               Weak.Foot,
           data=df)
 
 stargazer(model1, model2, model3, type="text", no.space = TRUE)
@@ -56,24 +63,36 @@ stargazer(model1, model2, model3, type="text", no.space = TRUE)
 
 
 ```{r}
+
+print("Model(1) VIF")
+vif(model1)
+print("Model(2) VIF")
+vif(model2)
+print("Model(3) VIF")
+vif(model3)
+
+
 model_msr <- c()
 model_msr["model1"] <- mean(resid(model1)^2)
 model_msr["model2"] <- mean(resid(model2)^2)
 model_msr["model3"] <- mean(resid(model3)^2)
-
-# vif(model1)
-vif(model2)
-vif(model3)
 print(model_msr)
-anova(model2, model3, test="F")
+
+for (i in (1:6)){
+  plot(model1, which=i)
+  plot(model2, which=i)
+  plot(model3, which=i)
+
+}
+
+
 
 ```
 
 ```{r}
 
+anova(model2, model3, test="F")
 
-for (i in (1:6)){
-  plot(model2, which=i)
-}
+
 ```
 
