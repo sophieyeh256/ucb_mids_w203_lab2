@@ -32,22 +32,22 @@ dim(df) #1358   24
 ```{r}
 # key variables only
 # start with polynomial assumption
-model1 <- lm(log(Value) ~ Age + I(Age^2) +
-                         isMajorNationality +
-                         International.Reputation + Contract.Years +
+model1 <- lm(log(Value) ~ Age + I(Age^2)+
                          Height + Weight + Special,
              data=df)
 
 # model with I(Age) has high VIF. Removing I(Age)
 model2 <- lm(log(Value) ~
-               I(Age^2) + isMajorNationality + International.Reputation+
-               Height + Weight + Contract.Years + Special,
+               I(Age^2) + 
+               Height + Weight + Special + Contract.Years +
+               International.Reputation,
               data=df)
 
 # Another potentially significant coefficient is Contract Years and Special
 model3 <- lm(log(Value) ~
-              I(Age^2) + isMajorNationality + International.Reputation+
-               Contract.Years + Height + Weight+
+              I(Age^2) 
+             + Height + Weight+
+               International.Reputation+
                Agility +
                Strength+
                Jumping+
