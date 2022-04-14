@@ -1,5 +1,7 @@
-# w203_yeh_browning_trahanovsky_lab_2
-Lab 2 for W203 Statistics for Data Science
+# FIFA Player Market Value Factors
+## W203 Statistics for Data Science
+## Lab 2 Regression Project
+## By Sophie Yeh, Nathaniel Browning, and Torrey Trahanovsky
 
 
 # 1. Introduction
