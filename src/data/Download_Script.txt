@@ -1,0 +1,11 @@
+The dataset is already in the data folder. Nonetheless, to download the dataset using a script please follow the below.
+
+To download the SRC data, the Kaggle API requires a account and key. This is unsafe for sharing for the project, thus it's required as a precursor to create a Kaggle account.
+
+Full official documentation is here (https://www.kaggle.com/docs/api), our summary below:
+Step 1.) Create a Kaggle Account
+Step 2.) pip install kaggle (You may need to do pip install --user kaggle on Mac/Linux) on your command line
+Step 3.) Requires Kaggle JSON, please install on your computer (Go to https://www.kaggle.com/account, API section, then download via “Create New API Token” button.
+Step 4.) Enter "kaggle" on the CLI
+Step 5.) kaggle datasets download -d [https://www.kaggle.com/datasets/bryanb/fifa-player-stats-database?select=FIFA22_official_data.csv]
+Step 6.) Specific where you would like this.

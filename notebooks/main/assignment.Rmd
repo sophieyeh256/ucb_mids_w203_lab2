@@ -1,0 +1,453 @@
+---
+title: "Lab 2: Analyzing Fifa 2022 Data"
+author: 'w203: Sophie Yeh, Nathaniel Browning, Torrey Trahanovsky'
+date: "April 12, 2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+library(corrplot)
+library(car)
+library(GGally)
+library(pracma)
+#install.packages("here")
+library(here)
+
+d <- read.csv(here("data", "processed", "FIFA22_official_data.csv"))
+
+data <- d
+df <- d
+
+```
+
+```{R, include=FALSE}
+money_formatter <- function(x) {
+  x <- gsub("â‚¬", "", x)
+  x <- gsub("€", "", x)
+  x <- case_when(
+    grepl("K", x, fixed=TRUE) ~ as.numeric(gsub("K", "", x))*1e3,
+    grepl("M", x, fixed=TRUE) ~  as.numeric(gsub("M", "", x))*1e6,
+    TRUE ~ as.numeric(x)
+  )
+  return(x)
+}
+weight_formatter <- function(x) {
+  x <- case_when(
+    grepl("kg", x, fixed=TRUE) ~ as.numeric(gsub("kg", "", x)),
+    grepl("cm", x, fixed=TRUE) ~  as.numeric(gsub("cm", "", x)),
+    TRUE ~ as.numeric(x)
+  )
+  return(x)
+}
+isMajor <- function(x, major) {
+  x <- case_when(
+    x %in% major ~ 1,
+    TRUE ~ 0
+  )
+  return(x)
+}
+
+```
+
+```{R, include=FALSE}
+df <- (filter(data, Best.Position == "GK")) #1546 rows
+# remove irrelevant string columns
+df <- select(df, 
+             -ID, -Name, -Photo, 
+             -Flag, -Club.Logo, -Jersey.Number, 
+             -Position, -Real.Face)
+
+# No NAs in Value, reformatting into number
+df$Value <- money_formatter(df$Value)
+# No NAs in Wage, reformatting into number
+df$Wage <- money_formatter(df$Wage)
+# No NAs in Height, reformatting into number
+df$Height <- weight_formatter(df$Height)
+# No NAs in Weight, reformatting into number
+df$Weight <- weight_formatter(df$Weight)
+# reformat Release.Clause into number
+df$Release.Clause <- money_formatter(df$Release.Clause)
+# convert Preferred.Foot into binary variable Preferred.Foot.Right
+df$Preferred.Foot[df$Preferred.Foot == "Right"] <- 1
+df$Preferred.Foot[df$Preferred.Foot == "Left"] <- 0
+df <- rename(df, Preferred.Foot.Right = Preferred.Foot)
+df$Preferred.Foot.Right <- as.numeric(df$Preferred.Foot.Right)
+# convert contract valid date
+df$Contract.Valid.Until <- as.numeric(format(as.Date(df$Contract.Valid.Until, tryFormats=c("%B %d, %Y", "%Y")),"%Y"))
+df$Contract.Years <- 2022 - df$Contract.Valid.Until
+
+# NATIONALITY
+by_nationality <- tally(df %>% group_by(Nationality))
+major_nationality <- by_nationality[by_nationality$n >= 20,]
+df$isMajorNationality <- isMajor(df$Nationality, major_nationality$Nationality)
+
+#CLUB
+byClub <- tally(df %>% group_by(Club))
+major_club <- byClub[byClub$n >= 5,]
+dim(major_club)
+df$isMajorClub <- isMajor(df$Club, major_club$Club)
+table(df$isMajorClub)
+
+df <- subset(df, select = -Loaned.From)
+df <- subset(df, select = -Marking)
+
+# Release.Clause has 137 NAs
+df <- na.omit(df)
+# remove 38 rows of value == 0, which are outliers
+df <- df[df$Value != 0,]
+
+df <- na.omit(df)
+
+data <- df
+
+dff <- df
+
+```
+
+# 1. An Introduction
+
+With millions of players and billions of fans, football (also known as soccer in the United States) is the world’s most popular sport both to play and to watch. Due to its popularity, professional football clubs have evolved into essentially companies with shareholders and managers. Fans have become customers that help clubs generate immense revenue. From a managerial perspective, one of the most important decisions that determine a club’s chances for success is which players to employ and ensuring that they pay wages that correctly factor in the revenue the clubs will generate. 
+
+It’s key for clubs to understand the market value of players on their team and ensure that as a club, like any company, has increased revenue, they focus on growing for shareholders and having the top talent in their club. Additionally, due to the nature of football having many variables and factors deciding a players ability on the field and value, it’s easier to localize solely on players with the role goalkeepers to control their play expectations on the field. Thus, the main question we seek to answer is:
+
+&nbsp;&nbsp;&nbsp;&nbsp;**Research Question:** In 2022, how does a goal keeper’s performance, background, and physical attributes affect their market value in football? 
+
+To find the answer, the standard for data on how players play, are predicted to play, and their compensation is the Fifa dataset as this closely resembles the real sport variables fairly accurately and applies variables to skills. Fifa stands for the International Federation of Association Football (FIFA) and is an important body in the field of football. 
+
+Additionally, our measurement goal is to try to measure the combination of variables that are not accounted for in the overall ranking variable in Fifa or in the value variable. These variables being Preferred Foot,Nationality, Potential, and International Reputation. With the goal of seeing to measure how these variables might correlate with a players ranking and thus their value. We seek to answer whether a player with a preferred left-foot or perhaps from a certain country, might have a higher value than another player with other variables held constant. Another end goal is to hopefully provide the outcome of the research to clubs so that they can better factor into other perhaps unconsidered characteristics into their clubs and have a better overall club performance resulting in improved football performance in the professional leagues. This could also be phrased as another question of *“How can clubs benefit from improved understanding of value and other player attributes?”*.
+
+The dataset Fifa 2022 data is quite well poised to answer the research question and provide measurements for the goals of the research. During the dataset exploratory data analysis, it’s also expected that some variables and the way they interact may result in having an effect on player value or another skill that is unexpected yet important to note. 
+
+
+# 2. A description of the Data and Research Design
+
+The data used to answer the main research question and measurement goals is composed of x and y variables. In which the X variables are: Age, Height, Weight, Preferred Foot, Overall Ranking (# overall), nationality, potential, and international reputation. While the Y variable is Value, the market value of a player, which is precisely the contract transfer fee between clubs.
+The primary design of the research is causal and explanatory, attempting to analyze collinearity between various x variables and see how they might indicate whether the y variable or other variables are affected by variances. The secondary type of research is exploratory in which during exploratory data analysis, various graphs, tables, stargazer, tests, and other visualization techniques are used to understand the data. To complement the analysis, researching the sport of football and what such stats and variables mean are key as well to ensure the understanding of the data is correct. Also, researching what types of variables typically comprise value in a player in the sport among various journals is key as well. The analysis will further process our data in order to fit a linear regression model between our key variables and market value. The scope of our research is limited to three linear models that will provide insight on factors affecting market value. Finally, we validate our model through statistical tests and diagnostic plots and pinpoint model limitations.
+
+Regarding the specific dataset, we will be using the FIFA22 dataset as previously introduced, specifically from Kaggle. This public dataset scrapes 2022 data from the official FIFA Index database and does not lose any data from the site while also maintaining a yearly view of stats. Player stats and scores are released by the official FIFA organization that governs international football. 
+
+&nbsp;&nbsp;&nbsp;&nbsp;**Dataset (Public):** https://www.kaggle.com/datasets/bryanb/fifa-player-stats-database
+
+Also, Journal sources where topic and Fifa learning came from:
+
+&nbsp;&nbsp;**Journal One:** https://home.kpmg/ch/en/blogs/home/posts/2018/08/how-much-do-you-value-your-favorite-football-star.html
+
+&nbsp;&nbsp;**Journal Two:** https://medium.com/analytics-vidhya/fifa19-dataset-analysis-6837664cee89
+
+## 2a. A Model Building Process
+
+The research question investigates factors influencing the market value of a player, and this is represented by the y variable, the ‘Value’ in the FIFA22 dataset. 
+
+The non-log histogram of “Value” shows a heavy skew in terms of actual pay, however, this is skewed by outliers. 
+
+```{r, echo=FALSE,include=TRUE}
+ggplot(dff, aes(x=Value)) + geom_histogram()
+
+```
+
+To offset the outliers, a semi-log histogram of `Value` reveals that `log(Value)` is normally distributed. Thus in our linear model, we will be creating a linear model for `log(Value)` in order to fit the OLS IID assumption.
+
+```{r,echo=FALSE,include=TRUE}
+ggplot(dff, aes(x=log(Value))) + geom_histogram()
+
+```
+
+Several journal articles in our preliminary background research all identified similar key variables affecting player market value. Based on this preliminary research, we have identified key variables in the dataset in which we hypothesize will affect market value: `Age`, Height`, `Weight` and `Special`. First, aging comes with physical limitations and increased chance of injury that can cause a player’s value to decrease. Second, a player’s height and weight itself, regardless of performance, may be more valued due to team managers’ and scouts’ bias. Performance is accounted for by the variable ‘Special’. ‘Special’ has a high correlation with all the performance variables in the dataset. Although it is best practice to use causal variables that don’t have other column variables affecting it, many performance variables overlap each other in different aspects, reverse causality and overfitting can become an issue. Instead, ‘Special’ is a composite representation of performance provided by experts based on professional considerations and priorities.
+
+As for the actual aspects that need to be measured and the potential covariates for modeling goals, the collinearity and potential problem covariates need to be assessed. When we assess for collinearity, we run two main statistical tests to ensure that we don’t have problematic covariates. The first test being a correlation matrix, and the second being a test for variance inflation factor. We can run the correlation matrix for values that are metric or on a scale. When running the matrix, we find that a few variables have correlation to each other. The first correlation we see is between the Height and Weight covariates. Due to these potentially playing an integral role in the decision behind Value, we want to ensure we look for the variable VIF values across our models later in the analysis. The second correlation we find is between the covariate “Special”. This variable had extremely high correlation to factors regarding a players skill rating (Handling, Kicking, etc). We find that we might be able to replace these skill factors with the Special covariate that is likely to better fit the model. We will check for this later through ANOVA test analysis of our different models.
+
+Finally, the Goalkeeper skill ratings were very highly correlated with each other and present reason to believe that these variables might contribute to violation of the collinearity assumption. Thus we conclude that it is safe to remove it from consideration for our models. 
+
+When assessing VIF, we have two major findings that we must factor in when considering our models. When the covariate, Age, is added to the model, the VIF is found to exceed the threshold for meeting the colinearity assumption. Thus, we only include the quadratic form of the variable and remove the original covariate from our later models. Once the age variable has been removed from our models, when we reassess for VIF values, we find that no covariates exceed the threshold for concern. With this being said, the 3 models constructed include the following variables as shown below in the stargazer:
+
+
+### Stargazer regression table:
+
+```{r echo=FALSE}
+
+model1 <- lm(log(Value) ~ Age + I(Age^2)+
+                         Height + Weight + Special,
+             data=df)
+
+# model with I(Age) has high VIF. Removing I(Age)
+model2 <- lm(log(Value) ~ Age +
+               I(Age^2) + 
+               Height + Weight + Special + Contract.Years +
+               International.Reputation,
+              data=df)
+
+# Another potentially significant coefficient is Contract Years and Special
+model3 <- lm(log(Value) ~ Age +
+              I(Age^2) +
+             Height + Weight+
+               International.Reputation+
+               Contract.Years +
+               Agility +
+               Strength+
+               Jumping+
+              Acceleration+
+               Stamina+
+               Weak.Foot,
+          data=df)
+
+stargazer(model1, model2, model3, 
+          type="text", no.space = TRUE,
+          omit.stat = c("f", "ser"))
+
+```
+
+The covariates that had transformations applied to them for our work in the model included Value, Wage, and Age. Value and Wage were covariates that are monetary values measured in euros that had a very heavy left skew. In order to adjust this for our model, we made sure to take the log of both covariates. This provided us with a more normal distribution of the data in order to better fit our model. 
+
+The original covariate for Age also proved to have a nonlinear relationship with the success metric of our study, Value. Thus, we needed to use the quadratic term for the variable which allowed for us to include it in the model without violating any necessary assumptions.
+
+Also, it's clear that our choices are supported by EDA. We were able to detect that the overall rank and GK skill sets were not the only indicators used to determine the true overall rank of goalkeepers. Nonetheless, every rank would rarely be higher for someone with significantly less skill in a GK category than another GK player in the same category. Regarding Nans we found that of GK’s, there were quite a lot of missing values in 2 columns: Loaned From and Marking. After these columns were removed, very few Nans existed, and when all rows with Nans were removed only about 100 players were removed. Additionally, more anomalies such as thirty-eight rows with players having no “Value” were also in the dataset that were removed, as players with no pay would likely be an error or skew the data. Also, some variables did have issues, such as weight, height, wage, and value. These had decimals or alphabetic characters used to represent numerical data. We had to alter this data to be fully numeric so it could be utilized and pad zeros to represent the numbers correctly. 
+
+Once we noticed and addressed these aspects, we proceeded to analyze the data by graphing with histograms and plots, this showed aspects such as skewed data, biased data, and areas where the best reflection of overall rank and skills could be seen. We were also able to understand what factors might indicate a well paid player or skill. Age was the least biased while other aspects such as wage were the highest biased among GKs. For statistical tests, t-tests were the easiest to perform and understand on the various variables. The p-values were however quite low due to the data not matching exactly for the tests being used. We proceeded to use our models to better understand the types of correlations and impacts of our data and how they relate. Also, by incorporating with stargazer we were better able to understand our data.
+
+During our EDA there were some stand-out plots and analysis that are worth highlighting.
+
+For example, the GKDiving histogram shows a heavily skewed distribution between GK normal distribution and the extremely low non-GK distribution when applied to the entire dataset of both non-GK and GK role players. 
+```{r echo=FALSE}
+ggplot(d, aes(x=GKDiving)) + geom_histogram() 
+
+# shows a heavily skewed distribution between GK normal distribution and the extremely low non-GK distribution
+```
+
+However, zooming in on solely a GK oriented variable, such as GKDiving shows that the distribution of GK only players is normal, as opposed to the prior graph with all players skewed.
+
+```{r echo=FALSE}
+ggplot(df, aes(x=GKDiving)) + geom_histogram() 
+
+# shows a heavily skewed distribution between GK normal distribution and the extremely low non-GK distribution
+```
+
+Other skills such as overall skill are surprisingly normally distributed among all professional players. As do the other graphs of GK skills when localized to solely GK role players, such as GKHandling, showing this is repeated in the data.
+
+```{r echo=FALSE}
+ggplot(dff, aes(x=Overall)) + geom_histogram()
+
+ggplot(dff, aes(x=GKHandling)) + geom_histogram()
+```
+
+This normal distribution continues for GK players among their various GK stats, thus, this implies that GK are outliers among all players as well. Additionally, attempting to plot correlation, plotting age and overall ability shows a skewed nature towards higher age and more overall ranking. This is expected and seems to still match a normal distribution among the player group. While plotting the GK skill focused variables shows strong correlation, with GKKicking being the least indicative of a highly overall skilled GK while the plotting of GKPositioning shows that variables strongly have a high overall ranked GK. Also, as will be shown in the correlation plot. International reputation is very obviously separated by overall ability
+
+
+Plotting age and overall ability shows a skewed nature towards higher age and more overall skill. This seems to still match a normal distribution.
+
+```{r echo=FALSE}
+ggplot(dff, aes(x=Overall,y=Age)) + geom_point()
+```
+
+The plotting of GK positioning shows that falls the closest to a overall skilled GK, being a great predictor of a GK with the highest overall or perhaps indicating this is the most important GK skill in overall.
+
+```{r echo=FALSE}
+ggplot(dff, aes(x=Overall,y=GKPositioning)) + geom_point()
+```
+
+Overall skill and wage are quite skewed to the right with a long left tail, showing a large inequality.
+
+```{r echo=FALSE}
+ggplot(dff, aes(x=Overall,y=Wage)) + geom_point()
+```
+
+Statistical tests were also applied during EDA and model building to better understand how variables may relate to one another. Running these tests on specifically wage, GKpositioning, and overall gave great detail into how these variables worked with one another and indicates that encompassing variables such as “Special” may have omitted variable bias. Which will be focused on in a later section of the paper.
+
+```{r echo=FALSE}
+t.test(dff$Overall,dff$Wage)
+
+t.test(dff$Overall,dff$GKPositioning)
+
+t.test(dff$GKPositioning,dff$Wage)
+
+wilcox.test(dff$Overall, dff$Wage, alternative = "two.sided")
+
+
+```
+
+Thus, based on the EDA, research question, and measurement goals, the model specifications were narrowed down to as follows. For the first model the specification first was to only include the key variables desired to be measured as to keep covariates at the minimum number. Additionally to this, another specification of the first model was to accurately analyze the variable “Age” due to the potential large impact it could have on the model, thus two age variables were included to check which might impact the model. Thus for the first model, the X variables selected were those most likely to not duplicate or affect one another much from a covariate perspective. Height and weight were used due to omission from being already factored in overall and value. Special was added as well, as this has the ability to factor in the various variables that influence a players ability to become an outlier in a positive way unrelated to overall or potential. This has the ability to capture the omitted variables in a numeric fashion that value does not account for as special is not directly weighted in rank.
+
+The second model adds the specification of including attributes of a player that likely contribute to a player's high value yet not already factored in the overall score or value for the player. Contract Years and International Reputation were selected as these variables meet the specification of improving the model yet also add another specification of seeking variables that should influence a players value yet are likely not currently accounted for due to abstraction from impact on the field. Special was also added and resulted in fantastic values overall and f-tests for the stargazer plot, that could be improved with more specifications or potentially not.
+
+The third model expands on the investigation of success indication by adding all the core skills variables that are not directly used in Overall, these player ability traits and field skills are key as they will have a larger impact on value. Due to this, covariates are more likely, thus these were selected based on the collinearity plot to meet the specification of minimal covariates. These variables do seem to have an indication as to the value of a player based on how they impact the model based on the stargazer. The third specification is to ensure that there is limited crossover in using variables that already account for one another. The model seeks to address this however, the second model does the best in terms of actual results, which will be dived in more in the next section.
+
+The end goal, which is perhaps another specification, is to prevent the collinearity from getting too high and close to one-hundred. This is to ensure that the model's indications can remain plausible instead of “too good to be true” with an abnormally high collinearity. This is done by checking the stargazer values and by reading the collinearity chart to ensure variables do not heavily influence one another.
+
+
+# 4. A Results Section
+
+### Stargazer regression table:
+
+```{r echo=FALSE}
+# key variables only
+# start with polynomial assumption
+model1 <- lm(log(Value) ~ Age + I(Age^2)+
+                         Height + Weight + Special,
+             data=df)
+
+# model with I(Age) has high VIF. Removing I(Age)
+model2 <- lm(log(Value) ~ Age +
+               I(Age^2) + 
+               Height + Weight + Special + Contract.Years +
+               International.Reputation,
+              data=df)
+
+# Another potentially significant coefficient is Contract Years and Special
+model3 <- lm(log(Value) ~ Age +
+              I(Age^2) +
+             Height + Weight+
+               International.Reputation+
+               Contract.Years +
+               Agility +
+               Strength+
+               Jumping+
+              Acceleration+
+               Stamina+
+               Weak.Foot,
+          data=df)
+
+stargazer(model1, model2, model3, 
+          type="text", no.space = TRUE,
+          omit.stat = c("f", "ser"))
+
+```
+\newpage
+### Statistical Significance:
+
+```{r echo=FALSE}
+print("Model(1) VIF")
+vif(model1)
+print("Model(2) VIF")
+vif(model2)
+print("Model(3) VIF")
+vif(model3)
+
+```
+
+Our Model(1) includes only key variables based on our research question and preliminary EDA: `Age`, `Height`, `Weight`, and `Special`. Our EDA revealed that `Age` had a polynomial relationship with `log(Value)`, and so our linear model includes both `Age` and `Age^2`. Model(1) has a high VIF for `Age` (102.76) and `Age^2` (96.43). Although high VIFs are typically a concern, it makes sense that `Age` and `Age^2` have collinearity and the model does not aim to differentiate between `Age` and `Age^2`.
+
+```{r echo=FALSE}
+
+
+model_msr <- c()
+model_msr["model1 msr"] <- mean(resid(model1)^2)
+model_msr["model2 msr"] <- mean(resid(model2)^2)
+model_msr["model3 msr"] <- mean(resid(model3)^2)
+print(model_msr)
+
+
+
+```
+All of the variables except `Weight` have statistical significance. Our initial Model(1) has an `R^2` of 0.557 and MSR of 0.823.
+Model(2) contains the key variables in addition to `Contract.Years` and `International.Reputation’, which may also influence market value. Model(2) has an `R^2` of 0.655, MSR of 0.641 and stable VIFs. The stargazer regression model shows that `Contract.Years` and `International.Reputation’ are both significant variables in addition to the significant variables in Model(1). When comparing Model(1) and Model(2) through the F-test, Model(2) has a significant p-value less than 2.2e-16 and thus improved the model’s fit.
+
+```{r}
+
+anova(model1, model2, test="F")
+
+```
+
+After creating the linear model for our key variables, Model(3) investigates the impact of the omitted variable bias involved with using `Special` in place of independent performance variables. From the collinearity matrix in our exploratory data analysis, many performance metrics and scoring are collinear. To maintain independence as best as possible, `Agility`, `Strength`, `Jumping`, `Acceleration`, `Stamina`,and  `Weak.Foot` were selected due to their weak correlation with each other. The stargazer regression table shows that all the variables except `Agility` and `Weight` are significant. Model(3)’s VIF’s confirmed that these variables do not cause multicollinearity problems. Compared to Model(2), Model(3) had a higher MSR of 0.849 and lower `R^2` of 0.492. An F-test comparing Model(2) and Model(3) in the code below did not produce a significant p-value and so Model(3) did not improve Model(2). Although Model(3) may have reduced omitted variable bias, performance measurements are inherently related to each other because it is a measurement of a player’s physical ability and can create causality problems. Additionally, our variable selection may not match FIFA’s `Special` scoring process and contribute to Model(3)’s inaccuracy.
+
+
+```{r}
+
+anova(model2, model3, test="F")
+
+```
+
+After evaluating the statistical significance of each model, Model(2) appears to be the best linear regression model among the three because of its higher `R^2`, lower MSR, and variable selection. When applying the t-test, all coefficients are significant except `Weight` and we can reject the null based on the null hypothesis that the p-value must be less than 0.1.
+
+
+```{r echo=FALSE}
+coeftest(model2, vcovHC)
+
+```
+
+### Practical Significance:
+$Log(Value) = 0.447*Age + -0.10*Age^2 + 0.16*Height + 0.003*Weight + 0.006*Special + 0.193*Contract.Years + 0.847*International.Reputation$
+
+The Model(3) linear regression can be interpreted as how Log(Value) will change with increases in each variable. For example, a one-point increase in international reputation while keeping all else constant will lead to 0.847 increase in Log(Value) (or $2.33). The coefficients reveal how much each weight each variable carries in the determination of a player’s market value. From this linear regression, international reputation has the largest impact, followed by Age, Contract.years, Height, Special, and Weight. Based on the selected linear model, it is surprising that `Special`, which measures a player’s skill, does not play a large role in market value compared to other factors. International reputation and player skill can have a large influence on a club’s revenue and performance while weight did not influence market value as much as we hypothesized. As a team manager or scout, this regression can support the determination of whether it is worth recruiting a high-market value player based on the team’s priorities. A highly skilled player with low international reputation may have a lower market value compared to a player with high international reputation but is not as skilled. A team looking for a highly skilled player may find that recruiting the player with the lower market value is more beneficial. 
+
+
+# 5. Limitations of your Model 
+
+## 5a. Statistical limitations of your model
+
+We know the data collected includes information on soccer players from the FIFA 2022 series and does not include any form of formal sampling, which is a potential violation. Rather each point in the data set is a unique player from the FIFA series, from a pool of all players in the league. With this knowledge, we can assume that the data is IID. This assumption of IID can help mitigate the issues caused from not having formal sampling.
+
+In terms of a unique BLP, we run a test to ensure both that there is no perfect collinearity, and that E[XTX] is invertible. We know from previous work that there exists no perfect collinearity within the data that has been selected for our 3 models. We run the inversion of E[XTX] to find that there indeed exists a matrix that satisfies this condition. With that being said, we can say that the Large Sample Assumptions have been satisfied for our model.
+
+Initially, we had planned to leverage some model variables that did not apply well to non-IID data, as we noticed some large non-log skewed histograms and plots of the player variables. However, when checking the large sample assumption violations and needing to mitigate them, we landed on ensuring that we used model variables that would fit to IID data well.
+
+```{r echo=FALSE}
+
+modelsmat <- df %>% select(Value,Age,International.Reputation,Contract.Years,Height,Weight,Special,Contract.Years,Weak.Foot,Agility,Strength,Jumping,Acceleration,Stamina)
+mat <- data.matrix(modelsmat, rownames.force = NA)
+inv(t(mat) %*% mat) 
+
+```
+
+## 5b. Structural limitations of your model
+
+The differences between model one and model two are essentially confined to expanding the variables to ensure that the assumed base assumptions are not skewing the model too much from being a reliable indicator. Thus, investigating model two and model three, it becomes apparent that the bias of “Special” in model two is being addressed in model three. “Special” is the most important omitted variable with another omitted variable that’s not very biased being “Contract Years”. These variables were unable to be analyzed as much as desired during EDA due to not knowing how they would influence the models until applied. The bias caused by “Contract Years” is quite minimal, having very little impact on the model and showing that it likely is normal. While for “Special” the bias is large, shown by a very skewed f-stat and a considerably lower residual error. Nonetheless, while the residual error is below the bounds that would likely cause the data to come into question (.90 and above) the influence of “Special” does not invalidate the results, but does call for further scrutiny. Hence, in model three “Special” is substituted by player abilities, the bias increase becomes apparent in the f-stat, constant, and individual dependent log values. This raises the residual error to near 1, the other tests and variables show that this is reducing omitted variable bias and resulting in a far more biased model.
+
+Another way to visualize this reduction in omitted variable bias is by looking at the collinearity plot and seeing the ways the various variables interact. The variables replacing “Special” in model three have the most minimal collinearity compared to other variables with those in model three as shown in the collinearity plot. However, not the most optimal model like in model two.
+
+```{r echo=FALSE}
+# correlation plots
+df_num <- select_if(df, is.numeric) 
+df_num.cor <- cor(df_num, use  = "pairwise.complete.obs")
+corrplot(df_num.cor, 
+         method="square",
+         type="lower",
+         tl.cex = .4)
+cor(x=(df_num$Overall), y=log(df_num$Value))
+# matrix scatterplot
+df_num$logValue <- log(df_num$Value)
+ggpairs(select(df_num, logValue, Age, Potential, International.Reputation, isMajorNationality, isMajorClub, Contract.Years))
+# Release Clause has near perfect collinearity of 0.9917075. Breaks assumption so cannot use.
+```
+
+
+# 7. Conclusion
+
+The above analysis focused on introducing the focus area of a “product” to improve, being clubs makeup and the criteria by which clubs should assess a skilled GK and determine the value of such GK. The FIFA dataset was used due to its reliability and accuracy for assessing players and giving a complex sport soccer quantitative and qualitative values for difficult to assess skills and field actions. The EDA process was especially important in which the data and potential model implications were explored, then the goal setting and model specifications were outlined. Finally, the models were built using the EDA process with variables cleaned or created to meet the research question and measurement goals outlined. The various potential biases and statistical limitations were also addressed after applying the models to the data via stargazer and checking various values such as collinearity, residual, f-stat, log values and deviations.
+
+Using our analysis and addressing the research question with our models, we were able to assess the relationship between the typical player in FIFA at the goal-keeper position’s market value and their physical attributes, performance, and background. We made use of our second model specifically such that it explains about 65.3% of the variance in the data. The statistically significant high-level findings from this assessment are as follows (while holding all other factors constant): 
+
+*Citing below log transformations found here: https://data.library.virginia.edu/interpreting-log-transformations-in-a-linear-model/*
+
+```{r echo=FALSE}
+
+(exp(coef(model2)) - 1) * 100 
+
+```
+
+&nbsp;&nbsp;&nbsp;&nbsp;**•**As the Age of a Goalkeeper is increased by 1 year, their market value is increased by 55.26%
+
+&nbsp;&nbsp;&nbsp;&nbsp;**•**As the Height of a Goalkeeper is increased by 1 kilogram, their market value is increased by 1.63% 
+
+&nbsp;&nbsp;&nbsp;&nbsp;**•**As the “Special” ranking of a Goalkeeper is increased by 1 rating, their market value is increased by 0.56%
+
+&nbsp;&nbsp;&nbsp;&nbsp;**•**As a Goalkeeper’s contract years increase by 1 year, their market value decreases by 17.56%
+
+&nbsp;&nbsp;&nbsp;&nbsp;**•**As a Goalkeeper’s international reputation is increased by 1 rating, their market value increases by 133.23% 
+
+Thus regarding the research question:
+
+&nbsp;&nbsp;&nbsp;&nbsp;**Research Question:** In 2022, how does a goal keeper’s performance, background, and physical attributes affect their market value in football? 
+
+It becomes clear how Height, Special, Contract Years, and International reputation potentially influence market value. These variables should thus be used by Club’s to improve their “product” of players in their Club and gain better value players. However, it could also be possible that these variables might not influence the value so much as instead be the reason behind value and already accounted for. Nonetheless, the insights provide enough in the models for Clubs to use the models on players to see who would be the best GK for their club and ensure they are getting the highest value or potential value players.
+
+

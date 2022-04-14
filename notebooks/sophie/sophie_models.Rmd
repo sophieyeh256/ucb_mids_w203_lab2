@@ -1,0 +1,108 @@
+---
+title: "lab2_fifa_sophie"
+output: pdf_document
+date: '2022-04-01'
+---
+
+```{r message=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+library(corrplot)
+library(car)
+library(GGally)
+
+df <- read.csv('data/interim/fifa22_interim_sophie.csv')
+```
+
+```{r}
+# key variables only
+model1 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # factor(Nationality) +
+                                International.Reputation, 
+          data=df)
+
+# investigate omitted variable bias. Add skills instead of overall
+model2 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Potential +
+                                # Nationality + 
+                                International.Reputation +
+                                # Preferred.Foot.Right +
+                                Weak.Foot + 
+                                GKDiving +
+                                GKHandling +
+                                GKKicking +
+                                GKPositioning +
+                                GKReflexes +
+                                DefensiveAwareness,
+          data=df)
+
+# include other factors in the dataset that might also be significant
+model3 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # Nationality + 
+                                International.Reputation +
+                                Wage + 
+                                Special + 
+                                Height +
+                                Weight,
+          data=df)
+
+# Remove insignificant variables in model3
+model4 <- lm(log(Value+1e-16) ~ 
+               Age + I(Age^2) +
+                                Overall +
+                                Potential +
+                                # Nationality + 
+                                Height +
+                                Weight,
+          data=df)
+stargazer(model1, model2, model3, model4,  type='text', no.space=TRUE)
+
+```
+```{r}
+model1_msr <- mean(resid(model1)^2)
+model2_msr <- mean(resid(model2)^2)
+model3_msr <- mean(resid(model3)^2)
+model4_msr <- mean(resid(model4)^2)
+model1_msr
+model2_msr
+model3_msr
+model4_msr
+
+
+
+
+
+```
+
+```{r}
+for (i in (1:6)){
+  plot(model1, which=i)
+}
+for (i in (1:6)){
+  plot(model4, which=i)
+}
+anova(model1, model2, test="F") # model2***
+anova(model3, model4, test="F") # model4*
+anova(model1, model2, model3, model4, test="F") # model2***
+
+vif(model1)
+vif(model2)
+vif(model3)
+vif(model4)
+
+```
+

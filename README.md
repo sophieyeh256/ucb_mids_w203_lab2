@@ -1,2 +1,2 @@
-# ucb_mids_w203_lab2
-Linear Regression Modeling of FIFA22 Players by Sophie Yeh, Torrey Trahanovsky, and Nate Browning
+# w203_yeh_browning_trahanovsky_lab_2
+Lab 2 for W203

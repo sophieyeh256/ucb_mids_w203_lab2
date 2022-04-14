@@ -1,0 +1,120 @@
+---
+title: "W203 Lab 2"
+output: pdf_document
+date: '2022-04-01'
+---
+
+```{r message=FALSE, echo=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+library(corrplot)
+library(car)
+library(GGally)
+
+df <- read.csv("C:/Users/tnt85/Downloads/Github Sophie/FIFA22_official_data.csv/FIFA22_official_data.csv")
+df <- na.omit(df)
+# dim(df) #1358   24
+```
+# Section 4. Results 
+
+## Stargazer regression table:
+
+```{r echo=FALSE}
+# key variables only
+# start with polynomial assumption
+model1 <- lm(log(Value) ~ Age + I(Age^2)+
+                         Height + Weight + Special,
+             data=df)
+
+# model with I(Age) has high VIF. Removing I(Age)
+model2 <- lm(log(Value) ~ Age +
+               I(Age^2) + 
+               Height + Weight + Special + Contract.Years +
+               International.Reputation,
+              data=df)
+
+# Another potentially significant coefficient is Contract Years and Special
+model3 <- lm(log(Value) ~ Age +
+              I(Age^2) +
+             Height + Weight+
+               International.Reputation+
+               Contract.Years +
+               Agility +
+               Strength+
+               Jumping+
+              Acceleration+
+               Stamina+
+               Weak.Foot,
+          data=df)
+
+stargazer(model1, model2, model3, 
+          type="text", no.space = TRUE,
+          omit.stat = c("f", "ser"))
+
+```
+\newpage
+## Statistical Significance:
+
+```{r echo=FALSE}
+print("Model(1) VIF")
+vif(model1)
+print("Model(2) VIF")
+vif(model2)
+print("Model(3) VIF")
+vif(model3)
+
+```
+
+Our Model(1) includes only key variables based on our research question and preliminary EDA: `Age`, `Height`, `Weight`, and `Special`. Our EDA revealed that `Age` had a polynomial relationship with `log(Value)`, and so our linear model includes both `Age` and `Age^2`. Model(1) has a high VIF for `Age` (102.76) and `Age^2` (96.43). Although high VIFs are typically a concern, it makes sense that `Age` and `Age^2` have collinearity and the model does not aim to differentiate between `Age` and `Age^2`.
+
+```{r echo=FALSE}
+
+
+model_msr <- c()
+model_msr["model1 msr"] <- mean(resid(model1)^2)
+model_msr["model2 msr"] <- mean(resid(model2)^2)
+model_msr["model3 msr"] <- mean(resid(model3)^2)
+print(model_msr)
+
+
+
+```
+All of the variables except `Weight` have statistical significance. Our initial Model(1) has an `R^2` of 0.557 and MSR of 0.823.
+Model(2) contains the key variables in addition to `Contract.Years` and `International.Reputation’, which may also influence market value. Model(2) has an `R^2` of 0.655, MSR of 0.641 and stable VIFs. The stargazer regression model shows that `Contract.Years` and `International.Reputation’ are both significant variables in addition to the significant variables in Model(1). When comparing Model(1) and Model(2) through the F-test, Model(2) has a significant p-value less than 2.2e-16 and thus improved the model’s fit.
+
+```{r}
+
+anova(model1, model2, test="F")
+
+```
+
+After creating the linear model for our key variables, Model(3) investigates the impact of the omitted variable bias involved with using `Special` in place of independent performance variables. From the collinearity matrix in our exploratory data analysis, many performance metrics and scoring are collinear. To maintain independence as best as possible, `Agility`, `Strength`, `Jumping`, `Acceleration`, `Stamina`,and  `Weak.Foot` were selected due to their weak correlation with each other. The stargazer regression table shows that all the variables except `Agility` and `Weight` are significant. Model(3)’s VIF’s confirmed that these variables do not cause multicollinearity problems. Compared to Model(2), Model(3) had a higher MSR of 0.849 and lower `R^2` of 0.492. An F-test comparing Model(2) and Model(3) in the code below did not produce a significant p-value and so Model(3) did not improve Model(2). Although Model(3) may have reduced omitted variable bias, performance measurements are inherently related to each other because it is a measurement of a player’s physical ability and can create causality problems. Additionally, our variable selection may not match FIFA’s `Special` scoring process and contribute to Model(3)’s inaccuracy.
+
+
+```{r}
+
+anova(model2, model3, test="F")
+
+```
+
+After evaluating the statistical significance of each model, Model(2) appears to be the best linear regression model among the three because of its higher `R^2`, lower MSR, and variable selection. When applying the t-test, all coefficients are significant except `Weight` and we can reject the null based on the null hypothesis that the p-value must be less than 0.1.
+
+
+```{r}
+coeftest(model2, vcovHC)
+
+```
+
+## Practical Significance:
+$Log(Value) = 0.447*Age + -0.10*Age^2 + 0.16*Height + 0.003*Weight + 0.006*Special + 0.193*Contract.Years + 0.847*International.Reputation$
+
+The Model(3) linear regression can be interpreted as how Log(Value) will change with increases in each variable. For example, a one-point increase in international reputation while keeping all else constant will lead to 0.847 increase in Log(Value) (or $2.33). The coefficients reveal how much each weight each variable carries in the determination of a player’s market value. From this linear regression, international reputation has the largest impact, followed by Age, Contract.years, Height, Special, and Weight. Based on the selected linear model, it is surprising that `Special`, which measures a player’s skill, does not play a large role in market value compared to other factors. International reputation and player skill can have a large influence on a club’s revenue and performance while weight did not influence market value as much as we hypothesized. As a team manager or scout, this regression can support the determination of whether it is worth recruiting a high-market value player based on the team’s priorities. A highly skilled player with low international reputation may have a lower market value compared to a player with high international reputation but is not as skilled. A team looking for a highly skilled player may find that recruiting the player with the lower market value is more beneficial. 
+
+

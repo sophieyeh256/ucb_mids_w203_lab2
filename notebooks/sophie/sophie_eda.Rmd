@@ -1,0 +1,78 @@
+---
+title: "sophie_EDA"
+output: pdf_document
+date: '2022-04-05'
+---
+
+```{r message=FALSE}
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(patchwork)
+library(sandwich)
+library(lmtest)
+library(fec16)
+library(stargazer)
+library(nnet)
+library(corrplot)
+library(car)
+install.packages("reshape", repos = "https://cran.rstudio.com/")
+library(GGally)
+
+df <- read.csv("C:/Users/tnt85/Downloads/Github Sophie/FIFA22_official_data.csv/FIFA22_official_data.csv")
+```
+
+
+```{r}
+hist(df$Age)
+hist(df$Overall)
+hist(df$Potential)
+hist(log(df$Value))
+hist(log(df$Wage))
+hist(df$Special)
+hist(df$Preferred.Foot.Right)
+hist(df$International.Reputation)
+hist(df$Weak.Foot)
+hist(df$Skill.Moves)
+hist(df$Height)
+hist(df$Weight)
+hist(log(df$Release.Clause))
+
+
+plot(x=(df$Age), y=log(df$Value))
+plot(x=df$Overall, y=log(df$Value))
+plot(x=df$Potential, y=log(df$Value))
+plot(x=df$International.Reputation, y=log(df$Value))
+plot(x=log(df$Release.Clause), y=log(df$Value))
+```
+
+```{r}
+# correlation plots
+df_num <- select(df,
+                     -Nationality,
+                     -Club,
+                     -Skill.Moves,
+                     - Body.Type,
+                     - Joined,
+                     - Loaned.From,
+                     - Contract.Valid.Until,
+                     -Best.Position,
+                     -Work.Rate,
+                     )
+df_num.cor <- cor(df_num, use  = "pairwise.complete.obs")
+corrplot(df_num.cor, 
+         method="square",
+         type="lower",
+         tl.cex = .4)
+cor(x=(df_num$Overall), y=log(df_num$Value))
+df_num$logValue <- log(df_num$Value)
+# matrix scatterplot
+ggpairs(select(df_num, logValue, Age, Potential, International.Reputation))
+# Release Clause has near perfect collinearity of 0.9917075. Breaks assumption so cannot use.
+
+temp_mod <- lm(log(Value + 1e-16)~ poly(Age, degree=2, raw=T), data=df)
+plot(df$Age, log(df$Value))
+lines(smooth.spline(df$Age, predict(temp_mod)), lwd=3, col="red")
+
+```
+
