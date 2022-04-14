@@ -1,7 +1,7 @@
 # FIFA Player Market Value Factors
-## W203 Statistics for Data Science
-## Lab 2 Regression Project
-## By Sophie Yeh, Nathaniel Browning, and Torrey Trahanovsky
+W203 Statistics for Data Science
+Lab 2 Regression Project
+By Sophie Yeh, Nathaniel Browning, and Torrey Trahanovsky
 
 
 # 1. Introduction
